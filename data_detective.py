@@ -1,208 +1,324 @@
-# data-detective.py
-# Twitter CSV data analysis — Lab 2
-# Quests:
-#   1) Clean messy data (missing text, likes, retweets)
-#   2) Find the most liked tweet without max()
-#   3) Sort top 10 by likes using selection sort — no .sort() allowed
-#   4) Search tweets by keyword
+# ============================================================
+# data_detective.py
+# Student: Akotet
+# Course:  Introduction to Python Programming and Databases
+# Lab:     Lab 2 — Social Media Data Detective
+# ============================================================
+#
+# This program reads a Twitter CSV file and does 4 things:
+#   Quest 1 — cleans the messy data (missing text, likes, retweets)
+#   Quest 2 — finds the tweet with the most likes (no max() allowed)
+#   Quest 3 — sorts tweets by likes using Selection Sort (no .sort() allowed)
+#   Quest 4 — lets the user search tweets by a keyword
+#
+# How to run:
+#   Make sure twitter_dataset.csv is in the same folder, then run:
+#   python data_detective.py
+# ============================================================
 
-import csv
-import os
+import csv  # used to read the CSV file row by row
+import os   # used to check if the file exists before opening it
 
 
-# ── helper: print a section header ──────────────────────────
-def banner(title):
+# ------------------------------------------------------------
+# HELPER FUNCTION — prints a nice section title on the screen
+# This makes it easy to see where each quest starts
+# ------------------------------------------------------------
+def show_section(title):
     print("\n" + "=" * 52)
     print(f"  {title}")
     print("=" * 52)
 
 
-# ── load CSV into a list of dicts ────────────────────────────
-def load_tweets(csv_file):
-    """Read every row from the CSV and return as a list of dicts."""
-    if not os.path.exists(csv_file):
-        raise FileNotFoundError(f"Could not find '{csv_file}'. Check the file name.")
+# ------------------------------------------------------------
+# LOAD FUNCTION — opens the CSV file and loads all rows
+# Each row becomes a dictionary like:
+#   { 'Tweet_ID': '1', 'Username': 'john', 'Text': '...', ... }
+# All rows are stored in one big list called post_list
+# ------------------------------------------------------------
+def load_posts(file_path):
 
-    with open(csv_file, newline='', encoding='utf-8') as f:
-        tweets = [row for row in csv.DictReader(f)]
+    # check the file exists before trying to open it
+    # if not, raise a clear error message instead of crashing
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Could not find '{file_path}'. Make sure the file is in the same folder.")
 
-    # stop early if the file is empty
-    if len(tweets) == 0:
-        raise ValueError("The CSV file has no data rows.")
+    # open the file and read every row into a list
+    with open(file_path, newline='', encoding='utf-8') as csv_file:
+        post_list = [row for row in csv.DictReader(csv_file)]
 
-    return tweets
+    # if the file opened but had no rows at all, stop here
+    if len(post_list) == 0:
+        raise ValueError("The CSV file is empty — there are no tweets to analyse.")
+
+    return post_list
 
 
-# ── Quest 1 — audit and clean ────────────────────────────────
-def audit_tweets(tweets):
-    """Remove rows with no text; replace blank likes/retweets with 0."""
-    cleaned = []
-    bad_count = 0
+# ------------------------------------------------------------
+# QUEST 1 — DATA AUDIT
+# Goal: clean the raw data before we analyse anything
+#
+# Rules:
+#   - If a tweet has no text at all → remove it completely
+#   - If a tweet has no likes value → set it to 0
+#   - If a tweet has no retweets value → set it to 0
+#
+# We also convert likes and retweets from strings to integers
+# because CSV files store everything as text by default
+# ------------------------------------------------------------
+def clean_posts(post_list):
 
-    for row in tweets:
-        # skip the whole row if there is no tweet text
-        if row.get('Text', '').strip() == '':
-            bad_count += 1
-            continue
+    # good_posts will hold only the tweets that pass our checks
+    good_posts = []
 
-        # fix blank likes
-        if row.get('Likes', '').strip() == '':
-            row['Likes'] = '0'
-            bad_count += 1
+    # problem_count tracks how many fields we fixed or removed
+    problem_count = 0
 
-        # fix blank retweets
-        if row.get('Retweets', '').strip() == '':
-            row['Retweets'] = '0'
-            bad_count += 1
+    # go through every tweet one by one
+    for post in post_list:
 
-        # make sure likes and retweets are valid integers
+        # get the tweet text, strip removes extra spaces around it
+        post_text = post.get('Text', '').strip()
+
+        # if the tweet has no text it is useless — skip it entirely
+        if post_text == '':
+            problem_count += 1
+            continue  # jump to the next tweet, don't add this one
+
+        # if the likes field is blank, replace it with the string '0'
+        # we keep it as a string here because the rest of the data is strings
+        if post.get('Likes', '').strip() == '':
+            post['Likes'] = '0'
+            problem_count += 1
+
+        # same fix for retweets
+        if post.get('Retweets', '').strip() == '':
+            post['Retweets'] = '0'
+            problem_count += 1
+
+        # now convert likes to a real integer to make sure it is a valid number
+        # if it is something weird like 'abc', set it to 0 instead of crashing
         try:
-            row['Likes'] = str(int(row['Likes']))
+            post['Likes'] = str(int(post['Likes']))
         except ValueError:
-            row['Likes'] = '0'
+            post['Likes'] = '0'
 
+        # same conversion check for retweets
         try:
-            row['Retweets'] = str(int(row['Retweets']))
+            post['Retweets'] = str(int(post['Retweets']))
         except ValueError:
-            row['Retweets'] = '0'
+            post['Retweets'] = '0'
 
-        cleaned.append(row)
+        # this tweet passed all checks — add it to the clean list
+        good_posts.append(post)
 
-    print(f"  {bad_count} bad field(s) fixed or removed.")
-    print(f"  {len(cleaned)} clean tweets ready for analysis.")
-    return cleaned
+    # print a summary of what we found and fixed
+    print(f"  {problem_count} problem field(s) fixed or removed.")
+    print(f"  {len(good_posts)} clean posts ready for analysis.")
+
+    return good_posts
 
 
-# ── Quest 2 — find the viral tweet ──────────────────────────
-def find_most_liked_tweet(tweets):
-    """Loop through all tweets and track the one with the highest likes.
-    No max() used — just a manual comparison each step."""
+# ------------------------------------------------------------
+# QUEST 2 — FIND THE VIRAL TWEET
+# Goal: find the single tweet with the highest number of likes
+#
+# We are NOT allowed to use Python's built-in max() function
+# Instead we loop through every tweet manually and keep track
+# of the best one we have seen so far
+#
+# Think of it like going through a stack of cards and always
+# keeping the highest number in your hand — replacing it
+# whenever you find a bigger one
+# ------------------------------------------------------------
+def find_top_post(good_posts):
 
-    best = None
-    best_likes = -1  # start below zero so any real value beats it
+    # top_post will hold the winning tweet
+    top_post = None
 
-    for row in tweets:
+    # top_likes starts at -1 so even a tweet with 0 likes will beat it
+    top_likes = -1
+
+    # go through every tweet and compare its likes to our current best
+    for post in good_posts:
+
+        # convert likes from string to integer for proper number comparison
+        # '100' as a string is not the same as 100 as a number
         try:
-            likes = int(row.get('Likes', '0'))
+            like_count = int(post.get('Likes', '0'))
         except ValueError:
-            likes = 0
+            like_count = 0  # if likes is invalid, treat it as 0
 
-        # replace current best if this tweet has more likes
-        if likes > best_likes:
-            best_likes = likes
-            best = row
+        # if this tweet has more likes than our current best, update the record
+        if like_count > top_likes:
+            top_likes = like_count
+            top_post = post
 
-    if best is None:
-        print("  No tweets found.")
+    # if nothing was found (empty list), print a message and stop
+    if top_post is None:
+        print("  No posts available.")
         return
 
-    print(f"  Username : {best.get('Username', 'Unknown')}")
-    print(f"  Likes    : {best_likes}")
-    print(f"  Text     : {best.get('Text', '')[:120]}")
+    # print the winning tweet's details
+    print(f"  Username : {top_post.get('Username', 'Unknown')}")
+    print(f"  Likes    : {top_likes}")
+    print(f"  Text     : {top_post.get('Text', '')[:120]}")
 
 
-# ── Quest 3 — selection sort + top 10 ────────────────────────
-def selection_sort_by_likes(tweets):
-    """Sort tweets from highest to lowest likes using Selection Sort.
-    No .sort() or sorted() allowed.
+# ------------------------------------------------------------
+# QUEST 3 — CUSTOM SORT (SELECTION SORT)
+# Goal: sort all tweets from most liked to least liked
+#
+# We are NOT allowed to use .sort() or sorted()
+# So we write our own sorting algorithm called Selection Sort
+#
+# How Selection Sort works:
+#   - Start at position 0
+#   - Scan ALL tweets after position 0 to find the one with the most likes
+#   - Swap that tweet into position 0
+#   - Move to position 1, scan everything after it, swap the best in
+#   - Keep going until the whole list is sorted
+#
+# Example with 5 tweets: [30, 10, 50, 20, 40]
+#   Pass 1 → find 50 → swap to front → [50, 10, 30, 20, 40]
+#   Pass 2 → find 40 → swap to pos 1 → [50, 40, 30, 20, 10]
+#   ... and so on
+# ------------------------------------------------------------
+def sort_posts_by_likes(good_posts):
 
-    How it works:
-      Each pass finds the tweet with the most likes in the unsorted
-      part and swaps it into the current front position.
-    """
-    data = tweets.copy()
-    n = len(data)
+    # work on a copy so we do not change the original list
+    sorted_list = good_posts.copy()
 
-    for i in range(n):
-        max_idx = i  # assume the current position is the best
+    # total number of tweets
+    total = len(sorted_list)
 
-        for j in range(i + 1, n):
-            # compare likes as integers, not strings
+    # outer loop — moves through each position in the list
+    for current_pos in range(total):
+
+        # assume the tweet at current_pos is already the best
+        best_pos = current_pos
+
+        # inner loop — scans everything after current_pos
+        for scan_pos in range(current_pos + 1, total):
+
+            # compare as integers — strings would sort wrong ('9' > '10' as text)
             try:
-                j_likes = int(data[j].get('Likes', '0'))
-                max_likes = int(data[max_idx].get('Likes', '0'))
+                scan_likes = int(sorted_list[scan_pos].get('Likes', '0'))
+                best_likes = int(sorted_list[best_pos].get('Likes', '0'))
             except ValueError:
-                j_likes = max_likes = 0
+                scan_likes = best_likes = 0
 
-            if j_likes > max_likes:
-                max_idx = j  # found a bigger value, remember its position
+            # if this tweet has more likes, remember its position
+            if scan_likes > best_likes:
+                best_pos = scan_pos
 
-        # swap the best found into the front slot
-        if max_idx != i:
-            data[i], data[max_idx] = data[max_idx], data[i]
+        # if we found something better than current_pos, swap them
+        if best_pos != current_pos:
+            sorted_list[current_pos], sorted_list[best_pos] = \
+                sorted_list[best_pos], sorted_list[current_pos]
 
-    return data
-
-
-def show_top_10(tweets):
-    """Print the top 10 tweets after sorting."""
-    sorted_tweets = selection_sort_by_likes(tweets)
-    top_n = min(10, len(sorted_tweets))  # handle datasets smaller than 10
-
-    for rank, tweet in enumerate(sorted_tweets[:top_n], start=1):
-        username = tweet.get('Username', 'Unknown')
-        likes    = tweet.get('Likes', '0')
-        text     = tweet.get('Text', '')[:80]
-        print(f"  #{rank:<3} {username:<18} {likes:>5} likes  |  {text}...")
+    return sorted_list
 
 
-# ── Quest 4 — keyword search ─────────────────────────────────
-def content_filter(tweets):
-    """Ask user for a keyword, find all tweets that contain it."""
+# this function calls sort_posts_by_likes and prints the top 10 results
+def display_top_10(good_posts):
 
-    # keep asking until the user actually types something
-    search_word = input("\n  Enter a search keyword: ").strip()
-    while search_word == '':
-        print("  Please type a word to search for.")
-        search_word = input("  Enter a search keyword: ").strip()
+    sorted_posts = sort_posts_by_likes(good_posts)
 
-    # collect every tweet whose text contains the keyword
-    matches = []
-    for row in tweets:
-        if search_word.lower() in row.get('Text', '').lower():
-            matches.append(row)
+    # use min() so we don't crash if there are fewer than 10 tweets
+    how_many = min(10, len(sorted_posts))
 
-    print(f"\n  Found {len(matches)} tweet(s) matching '{search_word}':\n")
+    # print each tweet with its rank number
+    for rank, post in enumerate(sorted_posts[:how_many], start=1):
+        handle  = post.get('Username', 'Unknown')
+        likes   = post.get('Likes', '0')
+        preview = post.get('Text', '')[:80]  # only show first 80 characters
+        print(f"  #{rank:<3} {handle:<18} {likes:>5} likes  |  {preview}...")
 
-    if len(matches) == 0:
-        print("  No matches found. Try a different word.")
+
+# ------------------------------------------------------------
+# QUEST 4 — KEYWORD SEARCH
+# Goal: let the user type a word and find all tweets that contain it
+#
+# The search is case-insensitive — searching 'music' also finds
+# 'Music', 'MUSIC', 'MuSiC' etc.
+#
+# Matching tweets are added to a new list called matched_posts
+# At the end we print how many we found using len()
+# ------------------------------------------------------------
+def search_posts(good_posts):
+
+    # ask the user for a keyword
+    # if they press Enter without typing anything, ask again
+    search_term = input("\n  Enter a search keyword: ").strip()
+    while search_term == '':
+        print("  You did not type anything. Please enter a keyword.")
+        search_term = input("  Enter a search keyword: ").strip()
+
+    # matched_posts will collect every tweet that contains the keyword
+    matched_posts = []
+
+    # go through every tweet and check if the keyword is in the text
+    for post in good_posts:
+        post_text = post.get('Text', '')
+
+        # .lower() on both sides makes the search case-insensitive
+        if search_term.lower() in post_text.lower():
+            matched_posts.append(post)  # add this tweet to our results
+
+    # tell the user how many matches we found
+    print(f"\n  Found {len(matched_posts)} tweet(s) matching '{search_term}':\n")
+
+    # if nothing matched, suggest trying a different word
+    if len(matched_posts) == 0:
+        print("  No matches found. Try a different keyword.")
         return
 
-    for row in matches:
-        username = row.get('Username', 'Unknown')
-        likes    = row.get('Likes', '0')
-        text     = row.get('Text', '')[:100]
-        print(f"  @{username} ({likes} likes): {text}")
+    # print every matching tweet
+    for post in matched_posts:
+        handle   = post.get('Username', 'Unknown')
+        likes    = post.get('Likes', '0')
+        preview  = post.get('Text', '')[:100]
+        print(f"  @{handle} ({likes} likes): {preview}")
 
-
-# ── main ─────────────────────────────────────────────────────
+# MAIN — this is where the program starts running
+# It calls each quest function in order and passes results along
 def main():
-    csv_file = 'twitter_dataset.csv'
 
-    # load — stop cleanly if the file is missing or empty
+    # the name of the CSV file we want to analyse
+    data_file = 'twitter_dataset.csv'
+
+    # try to load the file — if it fails, print the error and stop
     try:
-        tweets = load_tweets(csv_file)
-        print(f"\n  Loaded {len(tweets)} raw tweets from '{csv_file}'.")
-    except (FileNotFoundError, ValueError) as e:
-        print(f"\n  Error: {e}")
-        return
+        post_list = load_posts(data_file)
+        print(f"\n  Loaded {len(post_list)} raw tweets from '{data_file}'.")
+    except (FileNotFoundError, ValueError) as load_error:
+        print(f"\n  Error: {load_error}")
+        return  # stop the program — no point continuing without data
 
-    banner("Quest 1 — Data Audit")
-    tweets = audit_tweets(tweets)
+    # Quest 1 — clean the data first before anything else
+    show_section("Quest 1 — Data Audit")
+    post_list = clean_posts(post_list)
 
-    banner("Quest 2 — Viral Tweet")
-    find_most_liked_tweet(tweets)
+    # Quest 2 — find the tweet with the most likes
+    show_section("Quest 2 — Viral Tweet")
+    find_top_post(post_list)
 
-    banner("Quest 3 — Top 10 Most Liked")
-    show_top_10(tweets)
+    # Quest 3 — sort and show the top 10 most liked tweets
+    show_section("Quest 3 — Top 10 Most Liked")
+    display_top_10(post_list)
 
-    banner("Quest 4 — Content Filter")
-    content_filter(tweets)
+    # Quest 4 — search tweets by keyword
+    show_section("Quest 4 — Content Filter")
+    search_posts(post_list)
 
+    # final message when everything is done
     print("\n" + "=" * 52)
-    print("  Analysis complete.")
+    print("  Analysis complete. All 4 quests finished.")
     print("=" * 52 + "\n")
 
 
+# this line makes sure main() only runs when we execute this file directly
+# it prevents main() from running if someone imports this file into another script
 if __name__ == '__main__':
     main()
