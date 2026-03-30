@@ -113,18 +113,8 @@ def clean_posts(post_list):
     return good_posts
 
 
-# ------------------------------------------------------------
-# QUEST 2 — FIND THE VIRAL TWEET
-# Goal: find the single tweet with the highest number of likes
-#
-# We are NOT allowed to use Python's built-in max() function
-# Instead we loop through every tweet manually and keep track
-# of the best one we have seen so far
-#
-# Think of it like going through a stack of cards and always
-# keeping the highest number in your hand — replacing it
-# whenever you find a bigger one
-# ------------------------------------------------------------
+# QUEST 2 — loops through all tweets to find the one with the highest likes
+# I am NOT allowed to use max() so I track the best manually like holding cards in my hand
 def find_top_post(good_posts):
 
     # top_post will hold the winning tweet
