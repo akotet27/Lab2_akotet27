@@ -189,12 +189,15 @@ def search_posts(good_posts):
         if len(matched_posts) == 0:
             print("  No matches found. Try a different keyword.")
         else:
-            # print every matching tweet
-            for post in matched_posts:
+            # I sort the matches by likes before printing so the most liked
+            # tweets appear at the top — I reuse my own sort function here
+            matched_posts = sort_posts_by_likes(matched_posts)
+            # print every matching tweet ranked from highest to lowest likes
+            for rank, post in enumerate(matched_posts, start=1):
                 handle  = post.get('Username', 'Unknown')
                 likes   = post.get('Likes', '0')
                 preview = post.get('Text', '')[:100]
-                print(f"  @{handle} ({likes} likes): {preview}")
+                print(f"  #{rank:<3} @{handle} ({likes} likes): {preview}")
         # after showing results I ask if they want to search again
         # I only accept yes, y, no, or n — anything else shows an error and asks again
         while True:
