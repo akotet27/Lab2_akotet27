@@ -20,22 +20,16 @@ import csv  # used to read the CSV file row by row
 import os   # used to check if the file exists before opening it
 
 
-# ------------------------------------------------------------
-# HELPER FUNCTION — prints a nice section title on the screen
-# This makes it easy to see where each quest starts
-# ------------------------------------------------------------
+# HELPER FUNCTION — prints a nice section title so I know which quest is running
 def show_section(title):
     print("\n" + "=" * 52)
     print(f"  {title}")
     print("=" * 52)
 
 
-# ------------------------------------------------------------
-# LOAD FUNCTION — opens the CSV file and loads all rows
-# Each row becomes a dictionary like:
-#   { 'Tweet_ID': '1', 'Username': 'john', 'Text': '...', ... }
-# All rows are stored in one big list called post_list
-# ------------------------------------------------------------
+# LOAD FUNCTION — opens the CSV and loads all rows into a list of dicts
+# Each row looks like: { 'Tweet_ID': '1', 'Username': 'john', 'Text': '...', ... }
+# If the file is missing or empty I stop early with a clear message
 def load_posts(file_path):
 
     # check the file exists before trying to open it
